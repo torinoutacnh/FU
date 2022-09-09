@@ -1,4 +1,4 @@
-﻿using FU.Domain.Base;
+using FU.Domain.Base;
 using FU.Infras.Utils;
 using FU.Repository.DbStore;
 using Microsoft.EntityFrameworkCore;
@@ -48,29 +48,49 @@ namespace FU.Repository.Base
             return Task.CompletedTask;
         }
 
-        public Task<List<T>> GetAllAsync(Expression<Func<T, bool>> expression, bool isIncludeDeleted = false, params Expression<Func<T, object>>[] includeProperties)
+        public Task<List<T>> GetAllAsync(Expression<Func<T, bool>>? expression = null, bool isIncludeDeleted = false, params Expression<Func<T, object>>[] includeProperties)
         {
-            var notIncludeDeleteExpression = expression.AndAlso<T>((T x) => x.IsDeleted == false);
+            var notIncludeDeleteExpression = expression?.AndAlso<T>((T x) => x.IsDeleted == false);
 
             includeProperties = includeProperties.Distinct().ToArray();
             var source = isIncludeDeleted ?
-                _dbSet.Where(expression)
-                : _dbSet.Where(notIncludeDeleteExpression);
-
+                (expression != null ?
+                    _dbSet.Where(expression)
+                    : _dbSet.AsQueryable())
+                : (notIncludeDeleteExpression != null ?
+                    _dbSet.Where(notIncludeDeleteExpression)
+                    : _dbSet.Where(x => x.IsDeleted == false));
             foreach (Expression<Func<T, object>> navigationPropertyPath in includeProperties)
-            {
-                source = source.Include(navigationPropertyPath);
-            }
+                source.Include(navigationPropertyPath);
 
             return source.ToListAsync();
         }
 
-        public Task<T?> GetAsync(Guid id, bool isIncludeDeleted = false, params Expression<Func<T, object>>[] includeProperties)
+        public Task<List<TResult>> GetAllToAsync<TResult>(Func<T,TResult> f,Expression<Func<T, bool>>? expression = null, bool isIncludeDeleted = false, params Expression<Func<T, object>>[] includeProperties)
         {
+            var notIncludeDeleteExpression = expression?.AndAlso<T>((T x) => x.IsDeleted == false);
+
             includeProperties = includeProperties.Distinct().ToArray();
             var source = isIncludeDeleted ?
+                (expression != null ?
+                    _dbSet.Where(expression)
+                    : _dbSet.AsQueryable())
+                : (notIncludeDeleteExpression != null ?
+                    _dbSet.Where(notIncludeDeleteExpression)
+                    : _dbSet.Where(x => x.IsDeleted == false));
+            foreach (Expression<Func<T, object>> navigationPropertyPath in includeProperties)
+                source.Include(navigationPropertyPath);
+
+            return source.Select(x=>f(x)).ToListAsync();
+        }
+
+        public Task<T?> GetAsync(Guid id, bool isIncludeDeleted = false, params Expression<Func<T, object>>[] includeProperties)
+        {
+            var source = (isIncludeDeleted ?
                 _dbSet.Where(x => x.Id == id)
-                : _dbSet.Where(x => x.Id == id && x.IsDeleted == false);
+                : _dbSet.Where(x => x.Id == id && x.IsDeleted == false));
+
+            includeProperties = includeProperties.Distinct().ToArray();
             foreach (Expression<Func<T, object>> navigationPropertyPath in includeProperties)
             {
                 source = source.Include(navigationPropertyPath);
@@ -79,19 +99,21 @@ namespace FU.Repository.Base
             return source.FirstOrDefaultAsync();
         }
 
-        public Task<T?> GetAsync(Expression<Func<T, bool>> expression, bool isIncludeDeleted = false, params Expression<Func<T, object>>[] includeProperties)
+        public Task<T?> GetAsync(Expression<Func<T, bool>>? expression, bool isIncludeDeleted = false, params Expression<Func<T, object>>[] includeProperties)
         {
-            var notIncludeDeleteExpression = expression.AndAlso<T>((T x) => x.IsDeleted == false);
+            var notIncludeDeleteExpression = expression?.AndAlso<T>((T x) => x.IsDeleted == false);
 
             includeProperties = includeProperties.Distinct().ToArray();
-            var source = isIncludeDeleted ?
-                _dbSet.Where(expression)
-                : _dbSet.Where(notIncludeDeleteExpression);
+            var source = (isIncludeDeleted ?
+                (expression != null ?
+                    _dbSet.Where(expression)
+                    : _dbSet.AsQueryable())
+                : (notIncludeDeleteExpression != null ?
+                    _dbSet.Where(notIncludeDeleteExpression)
+                    : _dbSet.Where(x => x.IsDeleted == false)));
 
             foreach (Expression<Func<T, object>> navigationPropertyPath in includeProperties)
-            {
-                source = source.Include(navigationPropertyPath);
-            }
+                source.Include(navigationPropertyPath);
 
             return source.FirstOrDefaultAsync();
         }
